@@ -1,0 +1,585 @@
+---
+title: "ziyad_red_wine_udacity"
+output: html_document
+---
+
+## Introduction
+
+The Wine Quality dataset consists of red wine samples. We will be analyzing a dataset with 1,599 red wine samples. Each wine sample comes with a quality rating from one ( bad quality) to ten ( high quality) . In this project we will discover which chemical propeties influence the quality of red wines and to understand how these characteristics influence the quality
+
+
+
+
+```{r eval=FALSE , include=FALSE}
+install.packages("ggplot2", dependencies = T) 
+install.packages("grid", dependencies = T) 
+install.packages("dplyr", dependencies = T) 
+install.packages("reshape2", dependencies = T) 
+install.packages("GGally", dependencies = T) 
+install.packages("scales", dependencies = T) 
+install.packages("ggpubr", dependencies = T) 
+install.packages("memisc", dependencies = T) 
+install.packages("corrplot", dependencies = T) 
+install.packages("gridExtra", dependencies = T)
+```
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(knitr)
+library(corrplot)
+library(gridExtra)
+library(grid)
+library(dplyr)
+library(reshape2)
+library(GGally)
+library(scales)
+library(ggpubr)
+library(memisc)
+# knitr: Suppress code/messages/warnings 
+#        Set default plot options and center them
+knitr::opts_chunk$set(fig.width=9,fig.height=5,fig.path='Figs/',
+                      fig.align='center',tidy=TRUE,
+                      echo=FALSE,warning=FALSE,message=FALSE)
+```
+
+
+```{r}
+
+##load data from url below 
+Red_wine<-read.csv('https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityReds.csv')
+
+```
+
+
+##  Check duplicated values
+
+```{r}
+sum(duplicated(Red_wine))
+```
+
+## Check data dimension
+
+```{r}
+dim(Red_wine)
+```
+
+There are 1599 observations and 13 variables in the dataset.
+
+
+```{r}
+str(Red_wine)
+```
+
+```{r}
+# Draw a histogram for a given dataframe and variable
+draw_hist <- function(dataframe, variable)
+{
+  # Save histogram definition to the plot variable
+  plot <- ggplot(data = dataframe, aes(x = variable)) + 
+           geom_histogram(color = 'black', fill = '#099DD9') +
+           xlab(deparse(substitute(variable)))
+  return(plot)
+}
+
+# Build a matrix of small histograms with 3 columns
+grid.arrange(draw_hist(Red_wine, Red_wine$fixed.acidity),
+             draw_hist(Red_wine, Red_wine$volatile.acidity),
+             draw_hist(Red_wine, Red_wine$citric.acid),
+             draw_hist(Red_wine, Red_wine$residual.sugar),
+             draw_hist(Red_wine, Red_wine$chlorides),
+             draw_hist(Red_wine, Red_wine$free.sulfur.dioxide),
+             draw_hist(Red_wine, Red_wine$total.sulfur.dioxide),
+             draw_hist(Red_wine, Red_wine$density),
+             draw_hist(Red_wine, Red_wine$pH),
+             draw_hist(Red_wine, Red_wine$sulphates),
+             draw_hist(Red_wine, Red_wine$alcohol),
+             draw_hist(Red_wine, Red_wine$quality),
+             ncol = 3)
+
+```
+
+AS we can see above in histograms **`density`** and **`PH`** normally disributed but the rest of variables are more or less right skewed. The **`quality`** dependent variable has  almost normal discrete distribution.
+
+
+
+```{r}
+ggplot(aes(quality), data = Red_wine) +
+  geom_bar(color = "black", fill = "blue")
+```
+
+
+Most wines between 5 and 6 .If we see rare win with high quality with rate 8 also with bad quality (3,4) rate .Rate 7 has almost 200 .We goning investigate more below about these different observations .
+
+
+
+```{r}
+
+# Set boundaries for intervals
+breaks <- c(0, 5, 7, 10)
+
+Red_wine$quality.category <- cut(Red_wine$quality, breaks, include.lowest = TRUE, right = FALSE)
+
+# Check intervals
+summary(Red_wine$quality.category)
+
+# Add labels 
+labels <- c("Low", "Medium", "High")
+Red_wine$quality.category <- cut(Red_wine$quality, breaks, include.lowest = TRUE, right = FALSE, labels=labels)
+
+
+table(Red_wine$quality.category)
+
+# Draw the result
+y <- cbind(Red_wine, Red_wine$quality.category)
+ggplot(data = y, aes(x = y$quality.category, fill = ..count..)) + 
+  geom_bar(color = 'black', alpha = 0.9) + 
+  stat_count(geom = "text", aes(label = ..count..), hjust = -0.1) +
+  theme_bw() + 
+  labs(y = "Number of Observations", x = "Red Wine Quality Category") +
+  coord_flip() +
+  ylim(0, 2000) +
+  scale_x_discrete(drop = FALSE) 
+```
+
+
+As you can see above we demonstrating wine quality (LOW 0,5) , (Medium 5,7) (high 7,10 ) . We can see clearly most wine fill as Medium .The chart above make me confidence with the data quality no outlier .
+
+
+
+```{r}
+#exclude (droping) index of the dataset
+v0 <- names(Red_wine) %in% "X"
+RE <- Red_wine[!v0]
+
+# Create a function to compare the mean and median between highest, average and lowest 
+mean_median <- function(func.) {
+v1 <- data.frame(summarize_all(subset(RE, quality == 3),
+                                      .funs= func.))
+    
+
+v2 <- data.frame(summarize_all(subset(RE, quality == 5 | 
+                                      quality == 6), .funs= func.))
+                                      
+v3 <- data.frame(summarize_all(subset(RE, quality == 8),
+                                      .funs= func.))
+
+# this variable joins our three new data frames (v1, v2, v3) vertically. 
+myvars <- rbind(v1, v2, v3)
+
+myvars$quality = as.integer(myvars$quality)
+
+# reorder the columns in our new dataframe
+myvars [, c(12, 1:11) ]
+}
+
+head(Red_wine)
+```
+
+## mean for variables based on highest,average and lowest score. 
+
+
+
+```{r}
+mean_median(mean)
+```
+
+```{r}
+summary(Red_wine$quality)
+```
+
+
+
+The average mean quality of red wines is 5.63 and median is 6 .I think we have outliers here with free.sulfur and total.sulffur becuse the number dose it make since at all with reating . The wine samples with the highest score have the lowest level of density, volatile acidity, pH, and sugar the lowest score has the same median. 
+
+So now the big question what's the factor has impact on wine values and rating . 
+## Attributes below increase values and rating
+1.Alcohol 
+
+2.fixed acidity
+
+3.citric acid
+
+4.sulphates
+
+
+## Attributes below decrease values and rating
+1.Density 
+
+2.volatile acidity
+
+3.pH
+
+4.sugar
+
+
+```{r}
+RT <- function(variable, varName = '', bins = 30) {
+
+#Print charts with outliers
+## Building a Histogram:
+histogram <- ggplot(data = Red_wine) +
+    geom_histogram(aes(x = variable), bins = bins,
+                   fill = 'blue', colour='black') +
+    labs(x = varName)
+
+## Building a boxplot:
+boxplot <- ggplot(Red_wine, aes(x = 1, y = variable)) + 
+    geom_boxplot(color = 'black', fill = 'blue') + 
+    labs(x ='count', y = varName) + 
+  coord_flip()
+
+## Building density plot
+density_plot <- ggplot(aes(x = variable, 
+                           y = ..count../sum(..count..)), data = Red_wine ) +
+geom_density(fill = 'blue', binwidth = 10) +
+scale_x_continuous() +
+ labs(x = varName, y = 'count')
+
+## histogram with scale log10
+histlog10 <- histogram + scale_x_log10() + 
+    labs(x = paste('log10(', varName,')'))
+
+## Arranging all the plots:
+ggarrange(histogram, histlog10, density_plot, boxplot,  nrow = 4)               
+        
+}
+```
+
+## Fixed Acidity
+
+```{r}
+RT(Red_wine$fixed.acidity, 
+        varName = 'Fixed Acidity (tartaric acid - g / dm^3)')
+```
+```{r}
+summary(Red_wine$fixed.acidity)
+
+```
+
+
+Data above is lightly right skewed with minimum value of 4.5, maximum of 15.7 and median of 7 and mean of 8. The boxplot shows a few outliers from 12 to 16.
+
+
+## Volatile Acidity
+
+```{r}
+RT(Red_wine$volatile.acidity, 
+        varName = 'Volatile Acidity (acetic acid - g / dm^3)')
+
+```
+
+```{r}
+summary(Red_wine$volatile.acidity)
+
+```
+
+
+The variability between low and high quality categories is high comparing to other variables . There are a few outliers between the higher range, around 1.0 to 1.6 and median of 0.52 and mean of 0.52
+
+
+## Citric Acid
+```{r}
+RT(Red_wine$citric.acid, varName = 'Citric Acid (g / dm^3)')
+```
+```{r}
+summary(Red_wine$citric.acid)
+```
+
+
+Citric Acid data is right skewed with minimum value of 0, maximum of one outlayer and median of 0.26 and mean of 0.27.
+
+
+## Sugar
+```{r}
+RT(Red_wine$residual.sugar, varName = 'Residual Sugar (g / dm^3)')
+```
+```{r}
+summary(Red_wine$residual.sugar)
+```
+
+
+Data is right skewed with minimum value of 3 , maximum of 15.8 many outliers here .and median of 2.2 and mean of 2.5 .
+
+
+```{r}
+RT(Red_wine$chlorides, varName = 'Chlorides (g / dm^3)')
+```
+```{r}
+summary(Red_wine$chlorides)
+```
+
+
+chlorides data is right skewed with minimum value of 0.012, maximum of 0.61 median of 0.079 and mean of 0.087.
+
+
+## Free Sulfur Dioxide
+
+```{r}
+RT(Red_wine$free.sulfur.dioxide, 
+        varName = 'Free Sulfur Dioxide (g / dm^3)')
+```
+```{r}
+summary(Red_wine$free.sulfur.dioxide)
+```
+
+Free Sulfur Dioxide data is right skewed with minimum value of 1, maximum of 72 and median of 14 and mean of 15.87.
+
+
+
+## Total Sulfur Dioxide
+```{r}
+RT(Red_wine$total.sulfur.dioxide, 
+        varName = 'Total Sulfur Dioxide (g / dm^3)')
+```
+```{r}
+summary(Red_wine$total.sulfur.dioxide)
+```
+
+Sulfur dioxide data is right skewed with minimum value of 6, maximum of 289 (outlayers) and median of 38 and mean of 46.47.
+
+
+## Density
+
+```{r}
+RT(Red_wine$density, 
+        varName = 'density (g / cm^3)')
+```
+```{r}
+summary(Red_wine$density)
+```
+
+density data is normal with minimum value of 0.9901, maximum of 1.0037 and median of 0.9968 and mean of 0.996
+
+
+## pH
+```{r}
+RT(Red_wine$pH, varName = 'pH')
+```
+```{r}
+summary(Red_wine$pH)
+```
+
+
+pH data is normal with minimum value of 2.740, maximum of 4.010 and median of 3.310 and mean of 3.311 . 
+
+
+## Sulphates
+```{r}
+RT(Red_wine$sulphates, 
+        varName = 'Sulphates (potassium sulphate - g / dm3)')
+```
+```{r}
+summary(Red_wine$sulphates)
+```
+
+sulphates data is right skewed with minimum value of 0.33, maximum of 2 and median of 0.62 and mean of 0.658
+
+## Alcohol
+```{r}
+
+RT(Red_wine$alcohol, 
+        varName = 'Alcohol (% of vol)')
+```
+```{r}
+summary(Red_wine$alcohol)
+```
+
+alcohol data is right skewed but does not have many outliers with minimum value of 8.4, maximum of 14.9 and median of 10.2 and mean of 10.42.
+
+
+```{r}
+draw_main_quality_corrs <- function(dataframe, variable, title)
+{
+  plot <- ggplot(data = dataframe, aes(x = variable, y = quality.category)) + 
+    geom_point(aes(color = quality.category), alpha = 1/4, position = 'jitter') +
+    ggtitle(title) +
+    xlab('') +
+    ylab('Quality') +
+    theme(legend.position = "none")
+  return(plot)
+}
+
+draw_biv_summary <- function()
+{
+  grid.arrange(draw_main_quality_corrs(Red_wine, Red_wine$volatile.acidity, expression(Volatile~Acidity~(g/dm^{3}))),
+             draw_main_quality_corrs(Red_wine, Red_wine$citric.acid, expression(Citric~Acid~(g/dm^{3}))),
+             draw_main_quality_corrs(Red_wine, Red_wine$sulphates, expression(Sulphates~(g/dm^{3}))),
+             draw_main_quality_corrs(Red_wine, Red_wine$alcohol, 'Alcohol (% by Volume)'),
+             ncol = 2,
+             top = 'Quality and Features Correlation by Category')
+}
+
+draw_biv_summary()
+```
+
+
+Less **volatile.acidity** in a sample results in higher wine quality,
+* The bigger **citric.acid** level is in a sample on average the better quality of the sample is. The samples with **citric.acid** level above 0.5 will almost never be classsified as of Low quality,
+* The bigger **sulphates** level is in a sample on average the better quality of the sample is. However, the **sulphates** values are less spread than values of other variables,
+* Only **alcohol** level above 12 gives more certainty that the sample will be considered as of Medium or High quality. If the **alcohol** level goes below 10 a sample will most likely be considered as of a Medium or Low quality.
+
+
+
+```{r fig.width=9, fig.height=7}
+Red_wineCor <- cor(Red_wine[c(1:11, 12)])
+# Draw a correlation matrix
+Red_wineCor <- cor(subset(Red_wine, select = -c(X, quality.category)))
+
+corrplot(Red_wineCor, method = 'square', order = "hclust", 
+         tl.col = "black", tl.cex = 0.8, tl.offset = 1,addCoef.col = "black")
+```
+
+
+The correlation matrix shows that fixed.acidity is highly positively correlated with density and citric.acid. total.sulfur.dioxide is highly positively correlated with free.sulful.dioxide. pH is highly negatively correlated with fixed.acidity. citric.acid is correlated negatively with volatile.acidity and pH
+
+
+## Quality vs Alcohol
+```{r}
+rw_boxplot <- function (variable1, varName = '',
+                        variable2, varName1 = '') {
+  
+  boxplot <- ggplot(aes(x = factor(variable1), y = variable2), 
+                    data = Red_wine) +
+  geom_boxplot(color = 'black', fill = "lightblue") +
+    labs(x = varName, y = varName1)
+  plot(boxplot)
+}
+
+
+library(ggpubr)
+#Bulding function to analyze continuos variables
+rw_scatter <- function(varName = '', varName1 = '', 
+                       varName2 = '', varName3 = '' ) {
+                       
+
+  #Building scatter plot 
+  scatter <- ggscatter(Red_wine, x = varName, y = varName1,
+              conf.int = TRUE, color = "orange",
+              fill = "orange", cor.coef = TRUE, 
+              cor.method = "pearson") +
+    theme_dark() +
+    labs(title = paste(varName2, "vs", varName3, "scatter plot"))
+  
+  # Building scatter plot and add a linear regression line
+  scatter2 <- ggscatter(Red_wine, x = varName, y = varName1,
+              add = "reg.line", conf.int = TRUE, color = "orange", 
+              add.params = list(color = "grey20"), cor.coef = TRUE, 
+              cor.method = "pearson", alpha = 0.3) +
+    theme_dark() +
+    labs(title = paste(varName2, "vs", varName3, 
+                       "scatter plot with linear regression"))
+  
+  # Building scatter plot and add a fiting regression line
+  scatter3 <- ggscatter(Red_wine, x = varName, y = varName1,
+              add = "loess", conf.int = TRUE, color = "orange",
+              add.params = list(color = "grey20"), cor.coef = TRUE,
+              cor.method = "pearson", alpha = 0.3) +
+    theme_dark() +
+    labs(title = paste(varName2, "vs", varName3, 
+                       "scatter plot with fiting regression"))
+  
+  ggarrange(scatter, scatter2, scatter3,  nrow = 3)
+}
+```
+
+```{r}
+rw_boxplot(Red_wine$quality, varName = 'Quality', Red_wine$alcohol, 
+           varName1 = 'Alcohol')
+```
+
+```{r}
+by(Red_wine$alcohol, Red_wine$quality, summary)
+```
+
+
+The trend between alcohol and quality is clearer, with the highest quality score having the largest median. In other words, the amount of alcohol increases with better quality raking. Additionally, most outliers have a score of 5, and that explains why the median is lower than score of 4.
+
+## Multivariate Plots Section
+
+## Citric acid vs Fixed acidity and Volatile acidity on quality
+
+```{r}
+p1<-ggplot(aes(y=fixed.acidity, x=citric.acid), data=Red_wine)+
+  geom_point(aes(color=factor(quality)), size=2)+
+  scale_color_brewer(type = 'div')+
+  ggtitle("Citric acid vs Fixed acidity")
+p2<-ggplot(aes(y=volatile.acidity, x=citric.acid), data=Red_wine)+
+  geom_point(aes(color=factor(quality)), size=2)+
+  scale_color_brewer(type = 'div')+
+  ggtitle("Citric acid vs Volatile acidity")
+grid.arrange(p1,p2,ncol=1)
+```
+
+In the first scatterplot it shows that the good quality wines have more fixed acidity and more citric acid And in second scatterplot it shows good wines with low volatile and high cirtic acid contents . 
+
+## pH vs Alcohol on Quality
+
+```{r}
+  ggplot(aes(x=pH, y=alcohol), data=Red_wine)+
+  geom_point(aes(color=factor(quality)), size=2)+
+  scale_color_brewer(type = 'div')+
+  ggtitle("pH vs Alcohol acidity")
+```
+
+In scatterplot above we see that for the same value of pH the quality of wine increases as the alcohol content increases
+
+
+
+## Sugar vs alcohol on Quality
+
+```{r}
+ggplot(aes(x=residual.sugar, y=alcohol), data=Red_wine)+
+  geom_point(aes(color=factor(quality)), size=2)+
+  scale_x_log10()+
+  scale_color_brewer(type = 'div')+
+  ggtitle("Sugar vs Alcohol acidity")
+```
+
+
+Alcohol has same relation with sugar as with acids for the quality
+
+
+
+
+## Final Plots and Summary
+
+
+ِEvery variable distribution and density differences explored from different perspectives: through a histogram, a histogram with a log10 scale, density chart, and box plot for all variables. 80% wines have an average score Alcohol, fixed acidity, citric acid, sulphates increase with a better rating. Density, volatile acidity, pH, and sugar decrease with a better rating.
+
+
+```{r}
+ggplot(aes(quality), data = Red_wine) +
+  geom_bar(color = "black", fill = "blue") +
+  ggtitle("Histogram of Quality")
+```
+
+
+Most wine samples are of 6 and 5 (almost 80% of the dataset). Moreover, it seems to be that wines which received the highest score (8) have a few observations. This situation repeats at a low level (3, 4). Wines with a score of 7 have 200 observations.
+
+
+```{r}
+ggplot(aes(x = factor(quality), y = alcohol), 
+                    data = Red_wine) +
+  geom_boxplot(color = 'black', fill = "lightblue") +
+    labs(x = 'Quality',
+       y = 'Alcohol (% by volume)',
+       title = 'Relationship of Quality VS Alcohol')
+```
+
+The trend between alcohol and quality is clearer, with the highest quality score having the largest median. In other words, the amont of alcohol increases with a better quality raking. Also, most outliers have a score of 5, and that explains why the median is lower than a score of 4.
+
+
+```{r}
+draw_biv_summary()
+```
+
+* Medium quality red wines have **alcohol** level between 9-12 and **volatile.acidity** level between 0.2-0.8.
+* High quality red wines have **alcohol** level between 10-14 and **volatile.acidity** level between 0.2-0.6.
+* Low quality red wines have **alcohol** level between 9-12 and **volatile.acidity** level between 0.4-1.2.
+
+
+### Reflection
+
+The red wine data set contains information on almost 1,600 red wine samples across 12 chemical properties .Almost 80% of our dataset received an average score (5,6) and the highest score (8) holds only 1% (18 rows) of observations.The mean was not totally reliable in a few attributes as sugar and chlorides. These attributes had a significant difference from the median .In the future, there could be more features added (grown country, weather conditions, wine making process specifics, etc.) to the dataset . 
+The corrplot was crucial to understand the interactions of the chemicals which required further research, emphasizing  the need to understand the basics of the domain in order to perform effective analysis.Another area which required a lot of effort was in visualizing the interations-how best to capture the not so obvious relationship between the variables which can be telling. Finally this first time i'm using R language it's was little hard , specially for someone was using java ، c language . 
+
